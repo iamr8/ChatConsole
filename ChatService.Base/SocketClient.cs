@@ -1,38 +1,30 @@
 ﻿using System.Net;
+using System.Net.Sockets;
 using System.Text;
 
 namespace ChatService.Base;
 
-public record SocketClient : SocketBase
+public class SocketClient : SocketBase
 {
-    public override event OnReceivedDelegate OnReceived;
-    private SocketClient(IPEndPoint endpoint) : base(endpoint)
+    private string _alias;
+
+    public SocketClient(IPEndPoint endpoint) : base(endpoint)
     {
     }
 
     public static async Task<SocketClient> CreateConnectionAsync(string host, CancellationToken cancellationToken = default)
     {
-        var endPoint = await GetEndPointAsync(host, cancellationToken);
-        return new SocketClient(endPoint);
+        var hostEntry = await GetEndPointAsync(host, cancellationToken);
+        return new SocketClient(hostEntry);
     }
 
-    public override async Task ConnectAsync(CancellationToken cancellationToken = default)
+    public void Connect(string alias)
     {
-        string data = null;
-        var bytes = new byte[Sender.ReceiveBufferSize];
+        _alias = alias;
 
         try
         {
-            while (true)
-            {
-                var bytesReceived = Sender.Receive(bytes);
-                data += Encoding.ASCII.GetString(bytes, 0, bytesReceived);
-
-                if (data.IndexOf("-e") > -1)
-                    break;
-            }
-
-            OnReceived?.Invoke(this, new SocketMessageEventArgs { Message = data });
+            this.Listener.BeginConnect(_endpoint, ConnectCallback, this.Listener);
         }
         catch (Exception e)
         {
@@ -40,9 +32,55 @@ public record SocketClient : SocketBase
         }
     }
 
-    public override async Task SendAsync(string text, CancellationToken cancellationToken = default)
+    private void Send(Socket handler, string message)
     {
-        var msg = Encoding.UTF8.GetBytes(text);
-        Sender.Send(msg);
+        try
+        {
+            var msgBytes = Encoding.ASCII.GetBytes(message);
+            handler.BeginSend(msgBytes, 0, msgBytes.Length, 0, SendCallback, handler);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    public void Send(string message)
+    {
+        Send(this.Listener, message);
+    }
+
+    private void ConnectCallback(IAsyncResult ar)
+    {
+        try
+        {
+            var client = (Socket)ar.AsyncState!;
+            client.EndConnect(ar);
+
+            Console.WriteLine("{0:T} - You've been connected to an assist.", DateTime.Now);
+
+            var msg = $"::alias={_alias}";
+            Send(client, msg);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    private void SendCallback(IAsyncResult ar)
+    {
+        try
+        {
+            var client = (Socket)ar.AsyncState;
+
+            var bytesSent = client.EndSend(ar);
+
+            Console.WriteLine("{0:T} - Your message has been sent. ({1} bytes)", DateTime.Now, bytesSent);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
     }
 }

@@ -6,7 +6,7 @@ namespace ChatService.Base;
 /// <summary>
 /// An abstract class that pre-initializes some parts of a socket.
 /// </summary>
-public abstract record SocketBase : IDisposable
+public abstract class SocketBase : IDisposable
 {
     /// <summary>
     /// An endpoint that represents the socket's end url.
@@ -16,7 +16,7 @@ public abstract record SocketBase : IDisposable
     /// <summary>
     /// The socket that has duty to send and receive messages for the current user, either server, or client.
     /// </summary>
-    protected readonly Socket Sender;
+    protected readonly Socket Listener;
 
     /// <summary>
     /// Default constructor that initializes the socket.
@@ -28,38 +28,36 @@ public abstract record SocketBase : IDisposable
         _endpoint = endpoint;
 
         // Declare a socket, according to the given endpoint address, based on TCP protocol.
-        Sender = new Socket(endpoint.Address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        Listener = new Socket(endpoint.Address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
         // Announcement of current status of the socket, which is now just started.
         Console.WriteLine("Socket started on {0}", _endpoint);
     }
 
-    /// <summary>
-    /// A delegate type to let the coder declare an event for the time when a message received.
-    /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="args"></param>
-    public delegate void OnReceivedDelegate(object sender, SocketMessageEventArgs args);
+    ///// <summary>
+    ///// A delegate type to let the coder declare an event for the time when a message received.
+    ///// </summary>
+    ///// <param name="sender"></param>
+    ///// <param name="args"></param>
+    //public delegate void OnReceivedDelegate(object sender, SocketMessageEventArgs args);
 
-    /// <summary>
-    /// A event that would be invoked if current socket receives any message from the other nodes of the network.
-    /// </summary>
-    public virtual event OnReceivedDelegate OnReceived;
+    ///// <summary>
+    ///// A event that would be invoked if current socket receives any message from the other nodes of the network.
+    ///// </summary>
+    //public virtual event OnReceivedDelegate OnReceived;
 
-    /// <summary>
-    /// A request to connect to an existing socket.
-    /// </summary>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    public abstract Task ConnectAsync(CancellationToken cancellationToken = default);
+    ///// <summary>
+    ///// A request to connect to an existing socket.
+    ///// </summary>
+    ///// <returns></returns>
+    //public abstract void Connect();
 
-    /// <summary>
-    /// Sends a message through TCP protocol in socket to the socket, which is receivable for the other users.
-    /// </summary>
-    /// <param name="text"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    public abstract Task SendAsync(string text, CancellationToken cancellationToken = default);
+    ///// <summary>
+    ///// Sends a message through TCP protocol in socket to the socket, which is receivable for the other users.
+    ///// </summary>
+    ///// <param name="text"></param>
+    ///// <returns></returns>
+    //public abstract void Send(string text);
 
     /// <summary>
     /// Returns a <see cref="IPEndPoint"/> object according to the given host name.
@@ -70,7 +68,7 @@ public abstract record SocketBase : IDisposable
     protected static async Task<IPEndPoint> GetEndPointAsync(string host, CancellationToken cancellationToken = default)
     {
         var hostEntry = await Dns.GetHostEntryAsync(host, cancellationToken);
-        var ip = hostEntry.AddressList.FirstOrDefault(x => x.AddressFamily == AddressFamily.InterNetwork);
+        var ip = hostEntry.AddressList[0];
         var localEndPoint = new IPEndPoint(ip, 11000);
         return localEndPoint;
     }
@@ -80,6 +78,6 @@ public abstract record SocketBase : IDisposable
     /// </summary>
     public virtual void Dispose()
     {
-        Sender.Dispose();
+        Listener.Dispose();
     }
 }

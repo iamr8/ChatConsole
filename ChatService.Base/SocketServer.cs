@@ -4,51 +4,26 @@ using System.Text;
 
 namespace ChatService.Base;
 
-public record SocketServer : SocketBase
+public class SocketServer : SocketBase
 {
-    public override event OnReceivedDelegate OnReceived;
-    private Socket Client { get; set; }
-
-    private SocketServer(IPEndPoint endpoint) : base(endpoint)
+    public SocketServer(IPEndPoint endPoint) : base(endPoint)
     {
-        Sender.Bind(_endpoint);
-        Sender.Listen(10);
-
-        Console.WriteLine("Waiting for a client...");
     }
 
     public static async Task<SocketServer> CreateConnectionAsync(string host, CancellationToken cancellationToken = default)
     {
-        var endPoint = await GetEndPointAsync(host, cancellationToken);
-        return new SocketServer(endPoint);
-    }
-    private void CallAccept(IAsyncResult iar)
-    {
-        var server = (Socket)iar.AsyncState;
-        var client = server.EndAccept(iar);
+        var hostEntry = await GetEndPointAsync(host, cancellationToken);
+        return new SocketServer(hostEntry);
     }
 
-    public override async Task ConnectAsync(CancellationToken cancellationToken = default)
+    public void StartListening()
     {
-        Client = await Sender.AcceptAsync(cancellationToken);
-
-        Console.WriteLine("Client joined.");
-
-        string data = null;
-        var bytes = new byte[Client.ReceiveBufferSize];
+        this.Listener.Bind(_endpoint);
+        this.Listener.Listen(10);
 
         try
         {
-            while (true)
-            {
-                var bytesReceived = Client.Receive(bytes);
-                data += Encoding.ASCII.GetString(bytes, 0, bytesReceived);
-
-                if (data.IndexOf("-e") > -1)
-                    break;
-            }
-
-            OnReceived?.Invoke(this, new SocketMessageEventArgs { Message = data });
+            this.Listener.BeginAccept(AcceptCallback, this.Listener);
         }
         catch (Exception e)
         {
@@ -56,16 +31,41 @@ public record SocketServer : SocketBase
         }
     }
 
-    public override async Task SendAsync(string text, CancellationToken cancellationToken = default)
+    private static void AcceptCallback(IAsyncResult ar)
     {
-        var msg = Encoding.UTF8.GetBytes(text);
-        Client.Send(msg);
+        var listener = (Socket)ar.AsyncState!;
+        var handler = listener.EndAccept(ar);
+
+        Console.WriteLine("{0:T} - A client has been connected to you.", DateTime.Now);
+
+        var state = new SocketState();
+        state.Buffer = new byte[handler.ReceiveBufferSize];
+        state.BufferSize = handler.ReceiveBufferSize;
+        state.Handler = handler;
+        handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReadCallback, state);
     }
 
-    public override void Dispose()
+    private static void ReadCallback(IAsyncResult ar)
     {
-        Client.Shutdown(SocketShutdown.Both);
-        Client.Close();
-        Client.Dispose();
+        var state = (SocketState)ar.AsyncState;
+        var handler = state.Handler;
+        var bytesRead = handler.EndReceive(ar);
+
+        if (bytesRead > 0)
+        {
+            var msg = Encoding.ASCII.GetString(state.Buffer, 0, bytesRead);
+            if (msg.StartsWith("::"))
+            {
+                // internal msg
+                var arr = msg[2..].Split("=");
+                var key = arr[0];
+                var value = arr[1];
+                state.Bag.TryAdd(key, value);
+            }
+            else
+            {
+                Console.WriteLine("{0:T} - {1}: {2}", DateTime.Now, state.Bag["alias"], msg);
+            }
+        }
     }
 }
