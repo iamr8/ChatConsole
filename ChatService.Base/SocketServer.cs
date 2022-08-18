@@ -31,21 +31,21 @@ public class SocketServer : SocketBase
         }
     }
 
-    private static void AcceptCallback(IAsyncResult ar)
+    private void AcceptCallback(IAsyncResult ar)
     {
         var listener = (Socket)ar.AsyncState!;
         var handler = listener.EndAccept(ar);
 
-        Console.WriteLine("{0:T} - A client has been connected to you.", DateTime.Now);
+        this.Log($"A client has been connected to you.", LogLevel.Information);
 
         var state = new SocketState();
         state.Buffer = new byte[handler.ReceiveBufferSize];
         state.BufferSize = handler.ReceiveBufferSize;
         state.Handler = handler;
-        handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReadCallback, state);
+        handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
     }
 
-    private static void ReadCallback(IAsyncResult ar)
+    private static void ReceiveCallback(IAsyncResult ar)
     {
         var state = (SocketState)ar.AsyncState;
         var handler = state.Handler;

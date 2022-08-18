@@ -32,12 +32,19 @@ public class SocketClient : SocketBase
         }
     }
 
-    private void Send(Socket handler, string message)
+    private void Send(Socket handler, string message, bool shadowSend = false)
     {
         try
         {
             var msgBytes = Encoding.ASCII.GetBytes(message);
-            handler.BeginSend(msgBytes, 0, msgBytes.Length, 0, SendCallback, handler);
+            var state = new SocketState
+            {
+                Handler = handler,
+                Bag = new Dictionary<string, string>() { { "shadow", "true" } },
+                Buffer = msgBytes,
+                BufferSize = msgBytes.Length
+            };
+            handler.BeginSend(state.Buffer, 0, state.BufferSize, 0, SendCallback, state);
         }
         catch (Exception e)
         {
@@ -57,10 +64,10 @@ public class SocketClient : SocketBase
             var client = (Socket)ar.AsyncState!;
             client.EndConnect(ar);
 
-            Console.WriteLine("{0:T} - You've been connected to an assist.", DateTime.Now);
+            this.Log($"You've been connected to an assist.", LogLevel.Information);
 
             var msg = $"::alias={_alias}";
-            Send(client, msg);
+            Send(client, msg, true);
         }
         catch (Exception e)
         {
@@ -72,11 +79,13 @@ public class SocketClient : SocketBase
     {
         try
         {
-            var client = (Socket)ar.AsyncState;
+            var state = (SocketState)ar.AsyncState;
+            var handler = state.Handler;
 
-            var bytesSent = client.EndSend(ar);
+            var bytesSent = handler.EndSend(ar);
 
-            Console.WriteLine("{0:T} - Your message has been sent. ({1} bytes)", DateTime.Now, bytesSent);
+            if (!state.Bag.TryGetValue("shadow", out _))
+                this.Log($"Your message has been sent. ({bytesSent} bytes)", LogLevel.Information);
         }
         catch (Exception e)
         {
