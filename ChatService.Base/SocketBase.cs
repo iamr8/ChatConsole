@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -16,6 +17,8 @@ public abstract class SocketBase : IDisposable
     /// </summary>
     protected readonly IPEndPoint _endpoint;
 
+    public string Alias { get; protected set; }
+
     /// <summary>
     /// The socket that has duty to send and receive messages for the current user, either server, or client.
     /// </summary>
@@ -25,6 +28,7 @@ public abstract class SocketBase : IDisposable
     /// Default constructor that initializes the socket.
     /// </summary>
     /// <param name="endpoint">An <see cref="IPEndPoint"/> object that represents the end url of the socket.</param>
+    /// <param name="alias"></param>
     protected SocketBase(IPEndPoint endpoint)
     {
         // The given endpoint which is set by the coder, should be stored as a field to be usable at any time.
@@ -66,13 +70,91 @@ public abstract class SocketBase : IDisposable
         Console.ResetColor();
     }
 
-    protected JsonSerializerSettings JsonSerializer => new JsonSerializerSettings
+    protected JsonSerializerSettings JsonSerializer => new()
     {
         Formatting = Formatting.None,
         NullValueHandling = NullValueHandling.Ignore,
         ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
         ContractResolver = new CamelCasePropertyNamesContractResolver(),
     };
+
+    protected void SendCallback(IAsyncResult ar)
+    {
+        try
+        {
+            var state = (SocketState)ar.AsyncState;
+            var handler = state.Handler;
+
+            var bytesSent = handler.EndSend(ar);
+
+            if (!state.Message.Internal)
+                this.Log($"Your message has been sent. ({bytesSent} bytes)", LogLevel.Information);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    protected void Send(Socket handler, string message, bool shadowSend = false)
+    {
+        try
+        {
+            if (message.Contains("<") || message.Contains(">"))
+            {
+                this.Log("Please avoid using < or > in your message.", LogLevel.Error);
+                return;
+            }
+
+            var obj = new SocketMessage
+            {
+                Message = message,
+                User = this.Alias,
+                Internal = shadowSend,
+            };
+
+            var json = JsonConvert.SerializeObject(obj, this.JsonSerializer);
+            json += "<EOF>";
+
+            var msgBytes = Encoding.ASCII.GetBytes(json);
+            var state = new SocketState
+            {
+                Handler = handler,
+                Message = obj,
+                Buffer = msgBytes,
+                BufferSize = msgBytes.Length
+            };
+
+            handler.BeginSend(state.Buffer, 0, state.BufferSize, 0, SendCallback, state);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    protected void ReceiveCallback(IAsyncResult ar)
+    {
+        var state = (SocketState)ar.AsyncState;
+        var handler = state.Handler;
+        var bytesRead = handler.EndReceive(ar);
+
+        if (bytesRead > 0)
+        {
+            var msg = Encoding.ASCII.GetString(state.Buffer, 0, bytesRead);
+            if (msg.IndexOf("<EOF>") > -1)
+            {
+                msg = msg.Split("<EOF>")[0];
+                var obj = JsonConvert.DeserializeObject<SocketMessage>(msg, this.JsonSerializer);
+                if (!obj.Internal)
+                    this.Log($"{obj.User}: {obj.Message}");
+            }
+            else
+            {
+                handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
+            }
+        }
+    }
 
     /// <summary>
     /// Returns a <see cref="IPEndPoint"/> object according to the given host name.

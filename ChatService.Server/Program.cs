@@ -2,7 +2,7 @@
 
 using var cancellationTokenSource = new CancellationTokenSource();
 using var socket = await SocketServer.CreateConnectionAsync("localhost", cancellationTokenSource.Token);
-socket.StartListening();
+socket.Start("Assist");
 //await socket.Connec7tAsync(cancellationTokenSource.Token);
 //await socket.SendAsync("Server> Hello, I am your assist. How can I help you?", cancellationTokenSource.Token);
 //socket.OnReceived += (sender, eventArgs) =>
