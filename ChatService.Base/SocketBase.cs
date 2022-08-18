@@ -31,7 +31,36 @@ public abstract class SocketBase : IDisposable
         Listener = new Socket(endpoint.Address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
         // Announcement of current status of the socket, which is now just started.
-        Console.WriteLine("Socket started on {0}", _endpoint);
+        this.Log($"Socket started on {_endpoint}", LogLevel.Information);
+    }
+
+    protected void Log(string message, LogLevel level = 0)
+    {
+        Console.Write("\n[{0:T}] ", DateTime.Now);
+        switch (level)
+        {
+            case LogLevel.Information:
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.BackgroundColor = ConsoleColor.DarkCyan;
+                break;
+
+            case LogLevel.Warning:
+                Console.ForegroundColor = ConsoleColor.Black;
+                Console.BackgroundColor = ConsoleColor.Yellow;
+                break;
+
+            case LogLevel.Error:
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.BackgroundColor = ConsoleColor.Red;
+                break;
+
+            case LogLevel.Text:
+            default:
+                break;
+        }
+
+        Console.Write(" {0}\n", message);
+        Console.ResetColor();
     }
 
     ///// <summary>
