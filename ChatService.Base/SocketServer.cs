@@ -5,6 +5,8 @@ namespace ChatService.Base;
 
 public class SocketServer : SocketBase
 {
+    public Socket Handler { get; set; }
+
     public SocketServer(IPEndPoint endPoint) : base(endPoint)
     {
     }
@@ -34,14 +36,30 @@ public class SocketServer : SocketBase
     private void AcceptCallback(IAsyncResult ar)
     {
         var listener = (Socket)ar.AsyncState!;
-        var handler = listener.EndAccept(ar);
-
+        Handler = listener.EndAccept(ar);
         this.Log($"A client has been connected to you.", LogLevel.Information);
 
         var state = new SocketState();
-        state.Buffer = new byte[handler.ReceiveBufferSize];
-        state.BufferSize = handler.ReceiveBufferSize;
-        state.Handler = handler;
-        handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
+        state.Buffer = new byte[Handler.ReceiveBufferSize];
+        state.BufferSize = Handler.ReceiveBufferSize;
+        state.Handler = Handler;
+        Handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
+    }
+
+    public void Send(string message)
+    {
+        if (this.Handler is not { Connected: true })
+        {
+            this.Log("Still no user is being connected.", LogLevel.Error);
+            return;
+        }
+
+        Send(this.Handler, message);
+    }
+
+    public override void Dispose()
+    {
+        Handler.Shutdown(SocketShutdown.Both);
+        Handler.Close();
     }
 }

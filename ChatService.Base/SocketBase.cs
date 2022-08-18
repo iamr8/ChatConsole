@@ -100,7 +100,7 @@ public abstract class SocketBase : IDisposable
     {
         try
         {
-            if (message.Contains("<") || message.Contains(">"))
+            if (message.Contains('<') || message.Contains('>'))
             {
                 this.Log("Please avoid using < or > in your message.", LogLevel.Error);
                 return;

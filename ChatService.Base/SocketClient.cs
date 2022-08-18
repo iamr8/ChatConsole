@@ -41,7 +41,13 @@ public class SocketClient : SocketBase
             var client = (Socket)ar.AsyncState!;
             client.EndConnect(ar);
 
-            this.Log($"You've been connected to an assist.", LogLevel.Information);
+            this.Log($"You've been successfully connected to an assist.", LogLevel.Information);
+
+            var state = new SocketState();
+            state.Buffer = new byte[client.ReceiveBufferSize];
+            state.BufferSize = client.ReceiveBufferSize;
+            state.Handler = client;
+            client.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
         }
         catch (Exception e)
         {
