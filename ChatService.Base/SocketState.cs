@@ -7,5 +7,5 @@ internal class SocketState
     public byte[] Buffer { get; set; }
     public Socket Handler { get; set; }
     public int BufferSize { get; set; }
-    public Dictionary<string, string> Bag { get; set; } = new();
+    public SocketMessage Message { get; set; }
 }

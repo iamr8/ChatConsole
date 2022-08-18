@@ -2,6 +2,8 @@
 using System.Net.Sockets;
 using System.Text;
 
+using Newtonsoft.Json;
+
 namespace ChatService.Base;
 
 public class SocketServer : SocketBase
@@ -45,7 +47,7 @@ public class SocketServer : SocketBase
         handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
     }
 
-    private static void ReceiveCallback(IAsyncResult ar)
+    private void ReceiveCallback(IAsyncResult ar)
     {
         var state = (SocketState)ar.AsyncState;
         var handler = state.Handler;
@@ -53,18 +55,19 @@ public class SocketServer : SocketBase
 
         if (bytesRead > 0)
         {
+            // state.Messages.AppendLine(Encoding.ASCII.GetString(state.Buffer, 0, bytesRead));
             var msg = Encoding.ASCII.GetString(state.Buffer, 0, bytesRead);
-            if (msg.StartsWith("::"))
+            // var msg = state.Messages.ToString();
+            if (msg.IndexOf("<EOF>") > -1)
             {
-                // internal msg
-                var arr = msg[2..].Split("=");
-                var key = arr[0];
-                var value = arr[1];
-                state.Bag.TryAdd(key, value);
+                msg = msg.Split("<EOF>")[0];
+                var obj = JsonConvert.DeserializeObject<SocketMessage>(msg, this.JsonSerializer);
+                if (!obj.Internal)
+                    this.Log($"{obj.User}: {obj.Message}");
             }
             else
             {
-                Console.WriteLine("{0:T} - {1}: {2}", DateTime.Now, state.Bag["alias"], msg);
+                handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
             }
         }
     }

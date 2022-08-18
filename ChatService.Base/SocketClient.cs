@@ -2,6 +2,8 @@
 using System.Net.Sockets;
 using System.Text;
 
+using Newtonsoft.Json;
+
 namespace ChatService.Base;
 
 public class SocketClient : SocketBase
@@ -36,16 +38,30 @@ public class SocketClient : SocketBase
     {
         try
         {
-            var msgBytes = Encoding.ASCII.GetBytes(message);
+            if (message.Contains("<") || message.Contains(">"))
+            {
+                this.Log("Please avoid using < or > in your message.", LogLevel.Error);
+                return;
+            }
+
+            var obj = new SocketMessage
+            {
+                Message = message,
+                User = _alias,
+                Internal = shadowSend,
+            };
+
+            var json = JsonConvert.SerializeObject(obj, this.JsonSerializer);
+            json += "<EOF>";
+
+            var msgBytes = Encoding.ASCII.GetBytes(json);
             var state = new SocketState
             {
                 Handler = handler,
+                Message = obj,
                 Buffer = msgBytes,
                 BufferSize = msgBytes.Length
             };
-
-            if (shadowSend)
-                state.Bag.Add("shadow", "true");
 
             handler.BeginSend(state.Buffer, 0, state.BufferSize, 0, SendCallback, state);
         }
@@ -69,8 +85,8 @@ public class SocketClient : SocketBase
 
             this.Log($"You've been connected to an assist.", LogLevel.Information);
 
-            var msg = $"::alias={_alias}";
-            Send(client, msg, true);
+            // var msg = $"::alias={_alias}";
+            // Send(client, msg, true);
         }
         catch (Exception e)
         {
@@ -87,7 +103,7 @@ public class SocketClient : SocketBase
 
             var bytesSent = handler.EndSend(ar);
 
-            if (!state.Bag.TryGetValue("shadow", out _))
+            if (!state.Message.Internal)
                 this.Log($"Your message has been sent. ({bytesSent} bytes)", LogLevel.Information);
         }
         catch (Exception e)

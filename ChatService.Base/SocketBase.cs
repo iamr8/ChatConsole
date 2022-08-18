@@ -1,6 +1,9 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+
 namespace ChatService.Base;
 
 /// <summary>
@@ -63,30 +66,13 @@ public abstract class SocketBase : IDisposable
         Console.ResetColor();
     }
 
-    ///// <summary>
-    ///// A delegate type to let the coder declare an event for the time when a message received.
-    ///// </summary>
-    ///// <param name="sender"></param>
-    ///// <param name="args"></param>
-    //public delegate void OnReceivedDelegate(object sender, SocketMessageEventArgs args);
-
-    ///// <summary>
-    ///// A event that would be invoked if current socket receives any message from the other nodes of the network.
-    ///// </summary>
-    //public virtual event OnReceivedDelegate OnReceived;
-
-    ///// <summary>
-    ///// A request to connect to an existing socket.
-    ///// </summary>
-    ///// <returns></returns>
-    //public abstract void Connect();
-
-    ///// <summary>
-    ///// Sends a message through TCP protocol in socket to the socket, which is receivable for the other users.
-    ///// </summary>
-    ///// <param name="text"></param>
-    ///// <returns></returns>
-    //public abstract void Send(string text);
+    protected JsonSerializerSettings JsonSerializer => new JsonSerializerSettings
+    {
+        Formatting = Formatting.None,
+        NullValueHandling = NullValueHandling.Ignore,
+        ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+        ContractResolver = new CamelCasePropertyNamesContractResolver(),
+    };
 
     /// <summary>
     /// Returns a <see cref="IPEndPoint"/> object according to the given host name.
