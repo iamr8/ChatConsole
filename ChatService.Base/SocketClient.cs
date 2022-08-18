@@ -40,10 +40,13 @@ public class SocketClient : SocketBase
             var state = new SocketState
             {
                 Handler = handler,
-                Bag = new Dictionary<string, string>() { { "shadow", "true" } },
                 Buffer = msgBytes,
                 BufferSize = msgBytes.Length
             };
+
+            if (shadowSend)
+                state.Bag.Add("shadow", "true");
+
             handler.BeginSend(state.Buffer, 0, state.BufferSize, 0, SendCallback, state);
         }
         catch (Exception e)
