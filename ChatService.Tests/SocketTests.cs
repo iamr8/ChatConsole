@@ -60,6 +60,8 @@ namespace ChatService.Tests
 
                     s.Send("Hello there");
 
+                    await Task.Delay(100);
+
                     // Assert
                     Assert.NotEmpty(c.Messages);
                     Assert.NotEmpty(s.Messages);
@@ -89,6 +91,43 @@ namespace ChatService.Tests
 
                     // Assert
                     Assert.False(c.IsConnected);
+                }
+            }
+        }
+
+        [Fact, Order(4)]
+        public async Task Should_Be_A_Conversation()
+        {
+            using (var s = await SocketServer.CreateConnectionAsync(hostname))
+            {
+                s.Start(serverUser);
+
+                using (var c = await SocketClient.CreateConnectionAsync(hostname))
+                {
+                    c.Connect(clientUser);
+                    c.Send("Hello there");
+                    await Task.Delay(1001);
+                    s.Send("Hi. How can i help you?");
+                    await Task.Delay(1001);
+                    c.Send("I'd like to know further about your pricing plans.");
+                    await Task.Delay(1001);
+                    s.Send("Sure. I can help you with that.");
+
+                    // Assert
+                    Assert.NotEmpty(c.Messages);
+                    Assert.NotEmpty(s.Messages);
+
+                    Assert.Contains(c.Messages, msg => msg.Message == "Hello there" && msg.State == SocketMessageState.Sent);
+                    Assert.Contains(s.Messages, msg => msg.Message == "Hello there" && msg.State == SocketMessageState.Received);
+
+                    Assert.Contains(s.Messages, msg => msg.Message == "Hi. How can i help you?" && msg.State == SocketMessageState.Sent);
+                    Assert.Contains(c.Messages, msg => msg.Message == "Hi. How can i help you?" && msg.State == SocketMessageState.Received);
+
+                    Assert.Contains(c.Messages, msg => msg.Message == "I'd like to know further about your pricing plans." && msg.State == SocketMessageState.Sent);
+                    Assert.Contains(s.Messages, msg => msg.Message == "I'd like to know further about your pricing plans." && msg.State == SocketMessageState.Received);
+
+                    Assert.Contains(s.Messages, msg => msg.Message == "Sure. I can help you with that." && msg.State == SocketMessageState.Sent);
+                    Assert.Contains(c.Messages, msg => msg.Message == "Sure. I can help you with that." && msg.State == SocketMessageState.Received);
                 }
             }
         }
