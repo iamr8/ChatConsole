@@ -33,7 +33,7 @@ public class SocketClient : SocketBase
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            this.Log(e.Message, LogLevel.Error);
         }
     }
 
@@ -48,7 +48,7 @@ public class SocketClient : SocketBase
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                this.Log(e.Message, LogLevel.Error);
             }
         }
     }
@@ -67,12 +67,10 @@ public class SocketClient : SocketBase
 
                     if (lastMessage != null)
                     {
-                        var thresholdTime = DateTime.Now.AddSeconds(1).TimeOfDay.TotalMilliseconds;
-                        var lastMessageCreated = lastMessage.Created.TimeOfDay.TotalMilliseconds;
-                        if (lastMessageCreated < thresholdTime)
+                        var threshold = lastMessage.Created.AddSeconds(1).TimeOfDay.TotalMilliseconds;
+                        var now = DateTime.Now.TimeOfDay.TotalMilliseconds;
+                        if (now < threshold)
                         {
-                            this.Log("You are sending messages too fast. Please wait a little bit.", LogLevel.Warning);
-                            
                             this.WrongAttempts++;
                             switch (this.WrongAttempts)
                             {
@@ -112,7 +110,7 @@ public class SocketClient : SocketBase
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            this.Log(e.Message, LogLevel.Error);
         }
     }
 }
