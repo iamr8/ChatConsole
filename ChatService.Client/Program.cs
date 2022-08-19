@@ -8,7 +8,14 @@ var name = Console.ReadLine();
 using var socket = await SocketClient.CreateConnectionAsync("localhost", cancellationTokenSource.Token);
 socket.Connect(name);
 
-var message = Console.ReadLine();
-socket.Send(message);
+while (true)
+{
+    var message = Console.ReadLine();
+
+    if (message.Contains("-e"))
+        break;
+
+    socket.Send(message);
+}
 
 Console.ReadKey();
