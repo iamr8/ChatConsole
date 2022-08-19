@@ -100,7 +100,7 @@ public abstract class SocketBase : IDisposable
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            this.Log(e.Message, LogLevel.Error);
         }
     }
 
@@ -147,7 +147,7 @@ public abstract class SocketBase : IDisposable
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            this.Log(e.Message, LogLevel.Error);
         }
     }
 
@@ -168,19 +168,27 @@ public abstract class SocketBase : IDisposable
                     var obj = JsonConvert.DeserializeObject<SocketMessage>(msg, this.JsonSerializer);
                     if (!obj.Internal)
                     {
-                        this.Messages = this.Messages.Concat(new[] { new SocketBacklog(SocketMessageState.Received, obj.User, obj.Message, DateTime.Now) });
+                        this.Messages = this.Messages.Concat(new[]
+                            {new SocketBacklog(SocketMessageState.Received, obj.User, obj.Message, DateTime.Now)});
                         this.Log($"{obj.User}: {obj.Message}");
                     }
                 }
-                else
-                {
-                    handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
-                }
+
+                handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
             }
+            else
+            {
+                this.Log("Socket is closed.", LogLevel.Error);
+                handler.Close();
+            }
+        }
+        catch (SocketException e)
+        {
+            this.Log("Your chatmate has disconnected.", LogLevel.Warning);
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            this.Log(e.Message, LogLevel.Error);
         }
     }
 

@@ -22,14 +22,14 @@ public class SocketServer : SocketBase
         this.Alias = alias;
         this.Listener.Bind(_endpoint);
         this.Listener.Listen(10);
-
+        
         try
         {
             this.Listener.BeginAccept(AcceptCallback, this.Listener);
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            this.Log(e.Message, LogLevel.Error);
         }
     }
 
