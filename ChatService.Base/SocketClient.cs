@@ -5,8 +5,16 @@ namespace ChatService.Base;
 
 public class SocketClient : SocketBase
 {
+    protected int WrongAttempts { get; private set; }
+
     public SocketClient(IPEndPoint endpoint) : base(endpoint)
     {
+    }
+
+    public static SocketClient CreateConnection(string host)
+    {
+        var hostEntry = GetEndPoint(host);
+        return new SocketClient(hostEntry);
     }
 
     public static async Task<SocketClient> CreateConnectionAsync(string host, CancellationToken cancellationToken = default)
@@ -29,9 +37,62 @@ public class SocketClient : SocketBase
         }
     }
 
-    public void Send(string message)
+    public void LeaveConversation()
     {
-        Send(this.Listener, message);
+        if (this.Listener is { Connected: true })
+        {
+            this.Log("You are about to leave this conversation. Farewell!", LogLevel.Information);
+            try
+            {
+                this.Listener.Shutdown(SocketShutdown.Both);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+        }
+    }
+
+    public override void Send(string message)
+    {
+        if (this.Listener is { Connected: true })
+        {
+            Send(this.Listener,
+                message,
+                beforeSend: () =>
+                {
+                    var lastMessage = this.Messages
+                        .Where(x => x.State == SocketMessageState.Sent)
+                        .MaxBy(x => x.Created);
+
+                    if (lastMessage != null)
+                    {
+                        var thresholdTime = DateTime.Now.AddSeconds(1).TimeOfDay.TotalMilliseconds;
+                        var lastMessageCreated = lastMessage.Created.TimeOfDay.TotalMilliseconds;
+                        if (lastMessageCreated < thresholdTime)
+                        {
+                            this.Log("You are sending messages too fast. Please wait a little bit.", LogLevel.Warning);
+                            
+                            this.WrongAttempts++;
+                            switch (this.WrongAttempts)
+                            {
+                                case 1:
+                                    this.Log($"You are sending messages too fast. Please wait a little bit. You are allowed to send one message per second.", LogLevel.Warning);
+                                    break;
+
+                                case > 1:
+                                    this.Log("Unfortunately, we have to inform you, we closed this thread in order to rules violations.", LogLevel.Error);
+                                    this.LeaveConversation();
+                                    break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        this.WrongAttempts = 0;
+                    }
+                });
+        }
     }
 
     private void ConnectCallback(IAsyncResult ar)

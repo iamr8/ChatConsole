@@ -12,6 +12,9 @@ namespace ChatService.Base;
 /// </summary>
 public abstract class SocketBase : IDisposable
 {
+    public IEnumerable<SocketBacklog> Messages { get; private set; } = new List<SocketBacklog>();
+    public bool IsConnected => this.Listener.Connected;
+
     /// <summary>
     /// An endpoint that represents the socket's end url.
     /// </summary>
@@ -22,7 +25,7 @@ public abstract class SocketBase : IDisposable
     /// <summary>
     /// The socket that has duty to send and receive messages for the current user, either server, or client.
     /// </summary>
-    protected readonly Socket Listener;
+    public readonly Socket Listener;
 
     /// <summary>
     /// Default constructor that initializes the socket.
@@ -41,7 +44,7 @@ public abstract class SocketBase : IDisposable
         this.Log($"Socket started on {_endpoint}", LogLevel.Information);
     }
 
-    protected void Log(string message, LogLevel level = 0)
+    public void Log(string message, LogLevel level = 0)
     {
         Console.Write("\n[{0:T}] ", DateTime.Now);
         switch (level)
@@ -87,8 +90,13 @@ public abstract class SocketBase : IDisposable
 
             var bytesSent = handler.EndSend(ar);
 
+            state.OnAfterSent?.Invoke();
+
             if (!state.Message.Internal)
+            {
+                this.Messages = this.Messages.Concat(new[] { new SocketBacklog(SocketMessageState.Sent, state.Message.User, state.Message.Message, DateTime.Now) });
                 this.Log($"Your message has been sent. ({bytesSent} bytes)", LogLevel.Information);
+            }
         }
         catch (Exception e)
         {
@@ -96,13 +104,22 @@ public abstract class SocketBase : IDisposable
         }
     }
 
-    protected void Send(Socket handler, string message, bool shadowSend = false)
+    public abstract void Send(string message);
+
+    protected void Send(Socket handler, string message, Action beforeSend = null, Action afterSent = null, bool shadowSend = false)
     {
         try
         {
             if (message.Contains('<') || message.Contains('>'))
             {
                 this.Log("Please avoid using < or > in your message.", LogLevel.Error);
+                return;
+            }
+
+            beforeSend?.Invoke();
+            if (handler is not { Connected: true })
+            {
+                this.Log("Socket is not connected.", LogLevel.Error);
                 return;
             }
 
@@ -122,7 +139,8 @@ public abstract class SocketBase : IDisposable
                 Handler = handler,
                 Message = obj,
                 Buffer = msgBytes,
-                BufferSize = msgBytes.Length
+                BufferSize = msgBytes.Length,
+                OnAfterSent = afterSent
             };
 
             handler.BeginSend(state.Buffer, 0, state.BufferSize, 0, SendCallback, state);
@@ -135,25 +153,48 @@ public abstract class SocketBase : IDisposable
 
     protected void ReceiveCallback(IAsyncResult ar)
     {
-        var state = (SocketState)ar.AsyncState;
-        var handler = state.Handler;
-        var bytesRead = handler.EndReceive(ar);
-
-        if (bytesRead > 0)
+        try
         {
-            var msg = Encoding.ASCII.GetString(state.Buffer, 0, bytesRead);
-            if (msg.IndexOf("<EOF>") > -1)
+            var state = (SocketState)ar.AsyncState;
+            var handler = state.Handler;
+            var bytesRead = handler.EndReceive(ar);
+
+            if (bytesRead > 0)
             {
-                msg = msg.Split("<EOF>")[0];
-                var obj = JsonConvert.DeserializeObject<SocketMessage>(msg, this.JsonSerializer);
-                if (!obj.Internal)
-                    this.Log($"{obj.User}: {obj.Message}");
-            }
-            else
-            {
-                handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
+                var msg = Encoding.ASCII.GetString(state.Buffer, 0, bytesRead);
+                if (msg.IndexOf("<EOF>") > -1)
+                {
+                    msg = msg.Split("<EOF>")[0];
+                    var obj = JsonConvert.DeserializeObject<SocketMessage>(msg, this.JsonSerializer);
+                    if (!obj.Internal)
+                    {
+                        this.Messages = this.Messages.Concat(new[] { new SocketBacklog(SocketMessageState.Received, obj.User, obj.Message, DateTime.Now) });
+                        this.Log($"{obj.User}: {obj.Message}");
+                    }
+                }
+                else
+                {
+                    handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
+                }
             }
         }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    /// <summary>
+    /// Returns a <see cref="IPEndPoint"/> object according to the given host name.
+    /// </summary>
+    /// <param name="host"></param>
+    /// <returns></returns>
+    public static IPEndPoint GetEndPoint(string host)
+    {
+        var hostEntry = Dns.GetHostEntry(host);
+        var ip = hostEntry.AddressList[0];
+        var localEndPoint = new IPEndPoint(ip, 11000);
+        return localEndPoint;
     }
 
     /// <summary>
@@ -162,7 +203,7 @@ public abstract class SocketBase : IDisposable
     /// <param name="host"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    protected static async Task<IPEndPoint> GetEndPointAsync(string host, CancellationToken cancellationToken = default)
+    public static async Task<IPEndPoint> GetEndPointAsync(string host, CancellationToken cancellationToken = default)
     {
         var hostEntry = await Dns.GetHostEntryAsync(host, cancellationToken);
         var ip = hostEntry.AddressList[0];

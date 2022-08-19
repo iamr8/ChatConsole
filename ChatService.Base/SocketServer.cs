@@ -46,7 +46,7 @@ public class SocketServer : SocketBase
         Handler.BeginReceive(state.Buffer, 0, state.BufferSize, 0, ReceiveCallback, state);
     }
 
-    public void Send(string message)
+    public override void Send(string message)
     {
         if (this.Handler is not { Connected: true })
         {
